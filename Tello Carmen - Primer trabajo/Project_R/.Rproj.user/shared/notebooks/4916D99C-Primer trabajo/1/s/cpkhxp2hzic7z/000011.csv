@@ -1,0 +1,8 @@
+"0","tabla_mas_baja <- letra %>% 
+  mutate(fecha = year(fecha)) %>% 
+  filter(fecha == 2022) %>% 
+  group_by(fecha,letra_desc) %>% 
+  summarise(w_mean = round(mean(w_mean),0)) %>% 
+  arrange(desc(w_mean))
+"
+"2","`summarise()` has grouped output by 'fecha'. You can override using the `.groups` argument."

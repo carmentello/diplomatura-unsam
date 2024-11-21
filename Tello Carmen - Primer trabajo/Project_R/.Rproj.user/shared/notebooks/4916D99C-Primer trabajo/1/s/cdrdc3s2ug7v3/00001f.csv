@@ -1,0 +1,16 @@
+"0","tabla_geo <- base_geo %>% 
+  full_join(dpto %>% 
+  mutate(fecha = year(fecha)) %>% 
+  filter(fecha == ""2022"") %>% 
+  group_by(fecha,
+           link = codigo_departamento_indec, 
+           Departamento = nombre_departamento_indec, 
+           Provincia = nombre_provincia_indec) %>% 
+    summarise(w_mean = round(mean(w_mean),0)), by = ""link"") %>% 
+  filter(is.na(link) == F) %>% 
+  mutate(Provincia = ifelse(is.na(Provincia) == T,provincia,Provincia),
+         Departamento = ifelse(is.na(Departamento) == T, 
+                               departamen,
+                               Departamento))
+"
+"2","`summarise()` has grouped output by 'fecha', 'link', 'Departamento'. You can override using the `.groups` argument."

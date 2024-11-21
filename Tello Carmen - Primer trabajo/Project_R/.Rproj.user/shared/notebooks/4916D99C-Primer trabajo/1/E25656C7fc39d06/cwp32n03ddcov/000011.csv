@@ -1,0 +1,8 @@
+"0","tabla_mas_baja <- letra %>% 
+  group_by(letra_desc) %>% 
+  summarise(w_mean = mean(w_mean)) %>% 
+  arrange(desc(w_mean))
+"
+"2","Error in letra %>% group_by(letra_desc) %>% summarise(w_mean = mean(w_mean)) %>%  : 
+  could not find function ""%>%""
+"

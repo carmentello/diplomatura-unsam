@@ -1,0 +1,1 @@
+{"frames":[],"message":"Error in letra %>% group_by(letra_desc) %>% summarise(w_mean = mean(w_mean)) %>%  : \n  could not find function \"%>%\"\n"}

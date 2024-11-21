@@ -1,0 +1,33 @@
+"0","#base_geo <- st_read(""Bases/departamentos_arg.geojson"")
+base_geo <- st_read(""Bases/geo/pxdptodatosok.shp"")
+"
+"1","Reading layer `"
+"1","pxdptodatosok"
+"1","' from data source "
+"1","
+"
+"1","  "
+"1","`"
+"1","J:\Mi unidad\R\Cursos y talleres\Diplomatura UNSAM-IDAES\Primer trabajo\Project_R\Bases\geo\pxdptodatosok.shp"
+"1","' "
+"1","
+"
+"1","  "
+"1","using driver `"
+"1","ESRI Shapefile"
+"1","'"
+"1","
+"
+"1","Simple feature collection with 527 features and 10 fields"
+"1","
+"
+"1","Geometry type: MULTIPOLYGON
+"
+"1","Dimension:     XY
+"
+"1","Bounding box:  "
+"1","xmin: -74.02985 ymin: -90 xmax: -25.02314 ymax: -21.74506"
+"1","
+"
+"1","Geodetic CRS:  WGS 84
+"

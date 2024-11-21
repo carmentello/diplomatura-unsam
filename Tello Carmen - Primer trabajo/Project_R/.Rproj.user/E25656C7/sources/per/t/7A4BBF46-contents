@@ -1,0 +1,246 @@
+---
+title: "Trabajo Módulos 1 y 2"
+author: "Carmen Tello"
+output: html_document
+date: "2023-08-25"
+---
+
+```{r Librerías, include = FALSE, warning = FALSE}
+library(tidyverse)
+library(sf)
+library(stringr)
+library(kableExtra)
+library(gganimate)
+library(gifski)
+library(viridis)
+library(av)
+library(plotly)
+```
+
+```{r Bases de datos, include = FALSE, warning = FALSE}
+## Cargo las bases de datos, transformo las variables de fecha a clase Date.
+
+dic_clae2 <- read.csv("Bases/diccionario_clae2.csv")
+dic_dpto <- read.csv("Bases/diccionario_cod_depto.csv")
+base_dpto <- read.csv("Bases/w_mean_depto_total.csv") %>% 
+  mutate(fecha = as.Date(fecha))
+base_clae2 <- read.csv("Bases/w_mean_depto_total_clae2.csv") %>% 
+  mutate(fecha = as.Date(fecha))
+base_letra <- read.csv("Bases/w_mean_depto_total_letra.csv") %>% 
+  mutate(fecha = as.Date(fecha)) 
+
+#base_geo <- st_read("Bases/departamentos_arg.geojson")
+## Se decidió buscar nuevamente la base de departamentos del censo ya que no hacía match para dos departamentos de Tierra del Fuego.
+
+base_geo <- st_read("Bases/geo/pxdptodatosok.shp")
+
+## Creo dos objetos para identificar la fecha máxima y la mínima del dataset.
+
+min_fecha <-  paste(min(month(base_letra$fecha,label = T,abbr = F)),
+               "de",min(year(base_letra$fecha)))
+
+max_fecha <-  paste(max(month(base_letra$fecha,label = T,abbr = F)),
+               "de",max(year(base_letra$fecha)))
+```
+
+```{r Joineo con diccionarios, include = FALSE}
+## Trabajo con el formato de las variables de Actividad y Sector de actividad, para que el texto sea más claro en los gráficos.
+
+dic_clae2 <- dic_clae2 %>% 
+  mutate(letra_desc = str_to_title(letra_desc),
+         letra_desc = gsub(" De "," de ",letra_desc),
+         letra_desc = gsub(" Y "," y ",letra_desc),
+         letra_desc = str_trim(letra_desc,side="both"),
+         letra_desc = str_squish(letra_desc),
+         letra_desc = str_wrap(letra_desc,24),
+         clae2_desc = str_to_title(clae2_desc),
+         clae2_desc = gsub(" De "," de ",clae2_desc),
+         clae2_desc = gsub(" Y "," y ",clae2_desc),
+         clae2_desc = str_trim(clae2_desc,side="both"),
+         clae2_desc = str_squish(clae2_desc),
+         clae2_desc = str_wrap(clae2_desc,24)
+         ) 
+
+## Joineo las bases de datos con los diccionarios
+letra <- base_letra %>% 
+  left_join(dic_clae2 %>% select(letra,letra_desc) %>% distinct(), 
+            by = "letra") %>%
+  filter(is.na(letra_desc) == F)
+
+clae <- base_clae2 %>% 
+  left_join(dic_clae2, by="clae2") %>% 
+  filter(is.na(clae2) == F)
+
+dpto <- base_dpto %>% 
+  left_join(dic_dpto, by=c("codigo_departamento_indec","id_provincia_indec")) %>% 
+  mutate(
+     id_provincia_indec = 
+        str_pad(id_provincia_indec, 2, side="left", pad="0"),
+     codigo_departamento_indec = 
+        str_pad(codigo_departamento_indec, 5, side="left", pad="0"))
+```
+
+```{r Corrijo discrepancias del geojson, include = FALSE}
+## Reviso si al unir la base de Departamento con la base geográfica tengo discrepancias
+base_geo %>% 
+  full_join(dpto %>% 
+  filter(fecha >= "2022-01-01") %>% 
+  group_by(link = codigo_departamento_indec, 
+           Departamento = nombre_departamento_indec, 
+           Provincia = nombre_provincia_indec) %>% 
+    summarise(Ingresos = round(mean(w_mean),0)), by = "link") %>% filter(is.na(Departamento) == T)
+
+## El archivo del Ministerio no diferencia las comunas de CABA, así que voy a unificar el polígono de las comunas de CABA en uno solo.
+base_geo <- base_geo %>% 
+  filter(codpcia != "02") %>% rbind(
+base_geo %>% 
+  filter(codpcia == "02") %>% 
+  mutate(link = ifelse(codpcia == "02", "02000",link),
+         departamen = ifelse(codpcia == "02", "CABA",departamen),
+         #codigo_departamento_indec = ifelse(codpcia == "02", "02000",codigo_departamento_indec)
+         ) %>% 
+  group_by(link,codpcia,departamen,provincia) %>% 
+  summarise(mujeres = sum(as.numeric(mujeres)),
+            varones = sum(as.numeric(varones)),
+            personas = sum(as.numeric(personas)),
+            hogares = sum(as.numeric(hogares)),
+            viv_part = sum(as.numeric(viv_part)),
+            viv_part_h = sum(as.numeric(viv_part_h)),
+            geometry = st_union(geometry))) %>% 
+  st_cast("MULTIPOLYGON")
+
+## Chequeo si sigue habiendo discrepancias
+base_geo %>% 
+  full_join(dpto %>% 
+  filter(fecha >= "2022-01-01") %>% 
+  group_by(link = codigo_departamento_indec, 
+           Departamento = nombre_departamento_indec, 
+           Provincia = nombre_provincia_indec) %>% 
+    summarise(Ingresos = round(mean(w_mean),0)), by = "link") %>% filter(is.na(Departamento) == T)
+
+## También reviso si el archivo del Ministerio tiene departamentos sin geografía
+base_geo %>% 
+  full_join(dpto %>% 
+  filter(fecha >= "2022-01-01") %>% 
+  group_by(link = codigo_departamento_indec, 
+           Departamento = nombre_departamento_indec, 
+           Provincia = nombre_provincia_indec) %>% 
+    summarise(Ingresos = round(mean(w_mean),0)), by = "link") %>% 
+  filter(is.na(departamen) == T)
+
+## Como es información que no está, voy a aclarar en la columna de Departamento que esta sección no tiene datos.
+
+tabla_geo <- base_geo %>% 
+  full_join(dpto %>% 
+  mutate(fecha = year(fecha)) %>% 
+  filter(fecha == "2022") %>% 
+  group_by(fecha,
+           link = codigo_departamento_indec, 
+           Departamento = nombre_departamento_indec, 
+           Provincia = nombre_provincia_indec) %>% 
+    summarise(w_mean = round(mean(w_mean),0)), by = "link") %>% 
+  filter(is.na(link) == F) %>% 
+  mutate(Provincia = ifelse(is.na(Provincia) == T,provincia,Provincia),
+         Departamento = ifelse(is.na(Departamento) == T, 
+                               departamen,
+                               Departamento))
+
+```
+
+
+## Departamentos con ingresos más altos
+
+Se construyó un mapa interactivo que permite visualizar el ingreso promedio de cada departamento de la Argentina, para el año 2022. Se puede observar que los ingresos más altos se concentran en el sur del país, principalmente en la provincia de Santa Cruz, mientras que los ingresos más bajos se encuentran en el norte del país.
+
+```{r Tabla de ingreso por departamento, echo = FALSE, warning = FALSE}
+options(scipen=99)
+plot_geo <- ggplot(tabla_geo) +
+  geom_sf(aes(text = paste("Provincia:",Provincia,"<br>",
+                           "Departamento:",Departamento,"<br>",
+                           "Ingresos:", ifelse(is.na(w_mean)==T,
+                                               "Sin datos",
+                                              format(w_mean,big.mark=".",scientific = F)))
+              ,fill = w_mean),color=NA) +
+  scale_fill_viridis_c() +
+  scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+  labs(title = "Ingresos promedio por departamento",
+       subtitle = paste("Para el año",unique(tabla_geo$fecha)),
+       caption = "Fuente: Datos Abiertos del Ministerio de Desarrollo Productivo",
+       fill = "Ingresos promedio") +
+  theme_void() +
+  coord_sf(xlim = c(-75, -50), 
+           ylim = c(-20, -60))
+
+ggplotly(plot_geo,tooltip = "text")
+
+```
+
+## Sectores de actividad con ingresos más bajos
+
+Para identificar los sectores de actividad con ingresos más bajos, se construyó un promedio por actividad para el año 2022.
+
+```{r KBL, include = FALSE,warning=TRUE}
+tabla_mas_baja <- letra %>% 
+  mutate(fecha = year(fecha)) %>% 
+  filter(fecha == 2022) %>% 
+  group_by(fecha,letra_desc) %>% 
+  summarise(w_mean = round(mean(w_mean),0)) %>% 
+  arrange(desc(w_mean))
+```
+
+Luego, se identificaron los cinco sectores de actividad con ingresos promedio más bajos. El sector que tiene el menor ingreso promedio es: `r tabla_mas_baja[which.min(tabla_mas_baja$w_mean),]$letra_desc`
+
+```{r Plot de actividades más bajas, echo = FALSE, warning = FALSE}
+
+plot_actividades <- tabla_mas_baja %>% 
+  slice_min(w_mean,n=5) %>% 
+  ggplot(aes(x=reorder(letra_desc,w_mean),y=w_mean)) +
+  geom_col(fill = "#550D56") +
+  geom_text(aes(label = paste("$",format(w_mean,big.mark=".",scientific = FALSE),sep="")),color = "white",position = position_stack(vjust = 0.9)) +
+  scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+  labs(title = "Top 5 de sectores de actividad con salarios más bajos",
+       subtitle = paste("Promedio de salarios por sector en el año",unique(tabla_mas_baja$fecha)),
+       y = "Salario promedio",
+       x = "",
+       caption = "Fuente: Datos Abiertos del Ministerio de Desarrollo Productivo") + 
+  #scale_x_discrete(labels = str_wrap(actividades$letra_desc,24)) +
+  coord_flip() +
+  theme_minimal()
+
+print(plot_actividades)
+```
+
+## Evolución de 4 sectores de actividad
+
+Para este ejercicio, se decidió realizar un gráfico interactivo que muestre la evolución de las 4 actividades con mayores ingresos promedio en cada año, entre `r year(min(clae$fecha))` y `r year(max(clae$fecha))`, contemplando el sector al que pertenecen.
+
+```{r Tabla de ranking por año, include = FALSE}
+tabla_act <- clae %>% 
+  mutate(anio =  year(fecha)) %>% 
+  group_by(anio,letra_desc,clae2_desc) %>% 
+  summarise(w_mean = mean(w_mean)) %>% 
+  group_by(anio) %>% 
+  arrange(anio, desc(w_mean)) %>%
+  mutate(ranking = row_number()) %>% 
+  filter(ranking <= 4)
+```
+
+Se puede observar que, durante estos `r year(max(clae$fecha))-year(min(clae$fecha))` años, hay `r length(unique(tabla_act$clae2_desc))` actividades que pelean por el podio, que a la vez se concentran en `r length(unique(tabla_act$letra_desc))` sectores.
+
+
+```{r Gráfico interactivo, echo = FALSE}
+options(scipen= 99)
+ggplot(tabla_act, aes(group = clae2_desc)) +
+  geom_col(aes(x = w_mean, y = factor(ranking),fill = letra_desc)) +
+  geom_text(aes(x = w_mean, y = factor(ranking), label = clae2_desc)) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  transition_time(anio) +
+  labs(title = "Top 4 actividades con mayor ingreso promedio",
+       subtitle = "Año: {round(frame_time,0)}", 
+       y = NULL, 
+       x = "Ingreso promedio",
+       fill = "Sector de Actividad",
+       caption = "Fuente: Datos Abiertos del Ministerio de Desarrollo Productivo")
+```

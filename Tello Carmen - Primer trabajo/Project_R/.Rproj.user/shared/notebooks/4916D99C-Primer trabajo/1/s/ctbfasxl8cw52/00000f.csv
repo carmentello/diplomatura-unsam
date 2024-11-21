@@ -1,0 +1,10 @@
+"0","tabla_act <- clae %>% 
+  mutate(anio =  year(fecha)) %>% 
+  group_by(anio,letra_desc,clae2_desc) %>% 
+  summarise(w_mean = mean(w_mean)) %>% 
+  group_by(anio) %>% 
+  arrange(anio, desc(w_mean)) %>%
+  mutate(ranking = row_number()) %>% 
+  filter(ranking <= 4)
+"
+"2","`summarise()` has grouped output by 'anio', 'letra_desc'. You can override using the `.groups` argument."
